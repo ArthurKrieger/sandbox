@@ -44,12 +44,21 @@ jobs:
           path: build/libs/sandox-*.jar
           retention-days: 7
 
+      - name: Debug — show repo vars and secret presence (SAFE)
+        run: |
+          echo "ECR_REPOSITORY=${{ vars.ECR_REPOSITORY }}"
+          echo "ECS_CLUSTER=${{ vars.ECS_CLUSTER }}"
+          echo "ECS_SERVICE=${{ vars.ECS_SERVICE }}"
+          echo "AWS_REGION=${{ vars.AWS_REGION }}"
+          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then echo "AWS_ACCESS_KEY_ID: MISSING"; else echo "AWS_ACCESS_KEY_ID: PRESENT"; fi
+          if [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then echo "AWS_SECRET_ACCESS_KEY: MISSING"; else echo "AWS_SECRET_ACCESS_KEY: PRESENT"; fi
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+          aws-region: ${{ vars.AWS_REGION }}
 
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
