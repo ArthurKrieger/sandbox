@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+env:
+  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+  ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
+  ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  CONTAINER_NAME: sandox
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -34,8 +41,73 @@ jobs:
           path: build/libs/sandox-*.jar
           retention-days: 7
 
-      - name: Build Docker image
-        run: docker build -t sandox:${{ github.sha }} .
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag and push Docker image to ECR
+        id: push-image
+        run: |
+          REPO=${{ env.ECR_REPOSITORY }}
+          IMAGE_TAG=${{ github.sha }}
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          ECR_URI=${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${REPO}:${IMAGE_TAG}
+          aws ecr describe-repositories --repository-names ${REPO} >/dev/null 2>&1 || aws ecr create-repository --repository-name ${REPO} >/dev/null
+          docker build -t ${REPO}:${IMAGE_TAG} .
+          docker tag ${REPO}:${IMAGE_TAG} ${ECR_URI}
+          docker push ${ECR_URI}
+          echo "image=${ECR_URI}" >> $GITHUB_OUTPUT
+
+      - name: Create ECS task definition file
+        run: |
+          mkdir -p ecs
+          cat > ecs/taskdef.json <<'TASK'
+          {
+            "family": "${{ env.ECR_REPOSITORY }}",
+            "networkMode": "awsvpc",
+            "containerDefinitions": [
+              {
+                "name": "${{ env.CONTAINER_NAME }}",
+                "image": "IMAGE_PLACEHOLDER",
+                "essential": true,
+                "portMappings": [{ "containerPort": 8080, "hostPort": 8080 }],
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-group": "/ecs/${{ env.ECR_REPOSITORY }}",
+                    "awslogs-region": "${{ env.AWS_REGION }}",
+                    "awslogs-stream-prefix": "ecs"
+                  }
+                }
+              }
+            ],
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "256",
+            "memory": "512"
+          }
+          TASK
+
+      - name: Render Amazon ECS task definition
+        id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ecs/taskdef.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.push-image.outputs.image }}
+
+      - name: Deploy to Amazon ECS (Fargate)
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
 
       - name: Log Docker image info
-        run: docker images | grep sandox
+        run: docker images | grep sandox || true
