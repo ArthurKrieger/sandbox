@@ -83,7 +83,7 @@ jobs:
           cat > ecs/taskdef.json <<'TASK'
           {
             "family": "${{ env.ECR_REPOSITORY }}",
-            "executionRoleArn": "${{ vars.ECS_TASK_EXECUTION_ROLE_ARN }}",
+            "executionRoleArn": "${{ secrets.ECS_TASK_EXECUTION_ROLE_ARN }}",
             "networkMode": "awsvpc",
             "containerDefinitions": [
               {
