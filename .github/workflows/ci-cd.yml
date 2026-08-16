@@ -65,10 +65,10 @@ jobs:
         run: |
           echo "--- AWS caller identity ---"
           aws sts get-caller-identity || true
-          echo "--- ECS clusters (region: ${{ vars.AWS_REGION }}) ---"
-          aws ecs list-clusters --region ${ { vars.AWS_REGION } } || true
-          echo "--- Describe cluster sandbox-cluster ---"
-          aws ecs describe-clusters --clusters ${{ vars.ECS_CLUSTER }} --region ${{ vars.AWS_REGION }} || true
+          echo "--- ECS clusters (region: $AWS_REGION) ---"
+          aws ecs list-clusters --region "$AWS_REGION" || true
+          echo "--- Describe cluster $ECS_CLUSTER ---"
+          aws ecs describe-clusters --clusters "$ECS_CLUSTER" --region "$AWS_REGION" || true
 
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
