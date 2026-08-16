@@ -61,6 +61,15 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
+      - name: AWS debug — identity and clusters (SAFE)
+        run: |
+          echo "--- AWS caller identity ---"
+          aws sts get-caller-identity || true
+          echo "--- ECS clusters (region: ${{ vars.AWS_REGION }}) ---"
+          aws ecs list-clusters --region ${ { vars.AWS_REGION } } || true
+          echo "--- Describe cluster sandbox-cluster ---"
+          aws ecs describe-clusters --clusters ${{ vars.ECS_CLUSTER }} --region ${{ vars.AWS_REGION }} || true
+
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
 
