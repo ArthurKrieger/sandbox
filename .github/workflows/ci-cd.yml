@@ -44,26 +44,23 @@ jobs:
           path: build/libs/sandox-*.jar
           retention-days: 7
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
-        with:
-          mask-password: true
+      - name: AWS creds (env)
+        run: echo "Using AWS credentials from secrets"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
 
       - name: Build, tag and push Docker image to ECR
         id: push-image
         run: |
+          set -e
           REPO=${{ env.ECR_REPOSITORY }}
           IMAGE_TAG=${{ github.sha }}
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           ECR_URI=${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${REPO}:${IMAGE_TAG}
           aws ecr describe-repositories --repository-names ${REPO} >/dev/null 2>&1 || aws ecr create-repository --repository-name ${REPO} >/dev/null
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
           docker build -t ${REPO}:${IMAGE_TAG} .
           docker tag ${REPO}:${IMAGE_TAG} ${ECR_URI}
           docker push ${ECR_URI}
@@ -105,21 +102,20 @@ jobs:
           }
           TASK
 
-      - name: Render Amazon ECS task definition
-        id: render
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: ecs/taskdef.json
-          container-name: ${{ env.CONTAINER_NAME }}
-          image: ${{ steps.push-image.outputs.image }}
-
-      - name: Deploy to Amazon ECS (Fargate)
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-        with:
-          task-definition: ${{ steps.render.outputs.task-definition }}
-          service: ${{ env.ECS_SERVICE }}
-          cluster: ${{ env.ECS_CLUSTER }}
-          wait-for-service-stability: true
+      - name: Register task definition and deploy via AWS CLI
+        id: deploy-cli
+        run: |
+          set -e
+          IMAGE=${{ steps.push-image.outputs.image }}
+          # replace placeholder with actual image
+          sed -i "s|IMAGE_PLACEHOLDER|${IMAGE}|g" ecs/taskdef.json
+          # register task definition
+          TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://ecs/taskdef.json --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "task_def_arn=${TASK_DEF_ARN}" >> $GITHUB_OUTPUT
+          # update service to use new task definition
+          aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service ${{ env.ECS_SERVICE }} --task-definition ${TASK_DEF_ARN} --force-new-deployment
+          # wait for service stability
+          aws ecs wait services-stable --cluster ${{ env.ECS_CLUSTER }} --services ${{ env.ECS_SERVICE }}
 
       - name: Collect CloudWatch logs
         run: |
