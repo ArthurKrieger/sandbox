@@ -17,13 +17,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     environment: AWS
+    env:
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: 'true'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -45,15 +47,6 @@ jobs:
           path: build/libs/sandox-*.jar
           retention-days: 7
 
-      - name: Debug — show repo vars and secret presence (SAFE)
-        run: |
-          echo "ECR_REPOSITORY=${{ vars.ECR_REPOSITORY }}"
-          echo "ECS_CLUSTER=${{ vars.ECS_CLUSTER }}"
-          echo "ECS_SERVICE=${{ vars.ECS_SERVICE }}"
-          echo "AWS_REGION=${{ vars.AWS_REGION }}"
-          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then echo "AWS_ACCESS_KEY_ID: MISSING"; else echo "AWS_ACCESS_KEY_ID: PRESENT"; fi
-          if [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then echo "AWS_SECRET_ACCESS_KEY: MISSING"; else echo "AWS_SECRET_ACCESS_KEY: PRESENT"; fi
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -61,17 +54,10 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: AWS debug — identity and clusters (SAFE)
-        run: |
-          echo "--- AWS caller identity ---"
-          aws sts get-caller-identity || true
-          echo "--- ECS clusters (region: $AWS_REGION) ---"
-          aws ecs list-clusters --region "$AWS_REGION" || true
-          echo "--- Describe cluster $ECS_CLUSTER ---"
-          aws ecs describe-clusters --clusters "$ECS_CLUSTER" --region "$AWS_REGION" || true
-
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
+        with:
+          mask-password: true
 
       - name: Build, tag and push Docker image to ECR
         id: push-image
@@ -137,6 +123,18 @@ jobs:
           service: ${{ env.ECS_SERVICE }}
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
+
+      - name: Collect CloudWatch logs
+        run: |
+          mkdir -p logs
+          aws logs filter-log-events --log-group-name /ecs/${{ env.ECR_REPOSITORY }} --limit 500 --region ${{ env.AWS_REGION }} --query "events[].message" --output text > logs/ecs-deploy-logs.txt || true
+          echo "Saved logs to logs/ecs-deploy-logs.txt"
+
+      - name: Upload CloudWatch logs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecs-deploy-logs
+          path: logs/ecs-deploy-logs.txt
 
       - name: Log Docker image info
         run: docker images | grep sandox || true
