@@ -19,7 +19,13 @@ jobs:
     environment: AWS
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        run: |
+          set -e
+          echo "Cloning repository using GITHUB_TOKEN"
+          git init
+          git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+          git fetch --depth=1 origin ${{ github.ref }}
+          git checkout -f ${{ github.sha }}
 
       - name: Set up JDK 21
         uses: actions/setup-java@v5
@@ -37,12 +43,15 @@ jobs:
       - name: Build application
         run: ./gradlew build -x test
 
-      - name: Upload JAR artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sandox-app
-          path: build/libs/sandox-*.jar
-          retention-days: 7
+      - name: Upload JAR artifact (to S3 if configured)
+        run: |
+          set -e
+          if [ -n "${{ vars.S3_ARTIFACT_BUCKET }}" ]; then
+            echo "Uploading jar to s3://${{ vars.S3_ARTIFACT_BUCKET }}/$GITHUB_RUN_ID/"
+            aws s3 cp build/libs/sandox-*.jar s3://${{ vars.S3_ARTIFACT_BUCKET }}/$GITHUB_RUN_ID/ --region ${{ vars.AWS_REGION }} || true
+          else
+            echo "S3_ARTIFACT_BUCKET not set; skipping artifact upload."
+          fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -123,11 +132,15 @@ jobs:
           aws logs filter-log-events --log-group-name /ecs/${{ env.ECR_REPOSITORY }} --limit 500 --region ${{ env.AWS_REGION }} --query "events[].message" --output text > logs/ecs-deploy-logs.txt || true
           echo "Saved logs to logs/ecs-deploy-logs.txt"
 
-      - name: Upload CloudWatch logs artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ecs-deploy-logs
-          path: logs/ecs-deploy-logs.txt
+      - name: Upload CloudWatch logs (to S3 if configured)
+        run: |
+          set -e
+          if [ -n "${{ vars.S3_ARTIFACT_BUCKET }}" ]; then
+            aws s3 cp logs/ecs-deploy-logs.txt s3://${{ vars.S3_ARTIFACT_BUCKET }}/$GITHUB_RUN_ID/ecs-deploy-logs.txt --region ${{ vars.AWS_REGION }} || true
+            echo "Uploaded logs to s3://${{ vars.S3_ARTIFACT_BUCKET }}/$GITHUB_RUN_ID/ecs-deploy-logs.txt"
+          else
+            echo "S3_ARTIFACT_BUCKET not set; skipping log upload."
+          fi
 
       - name: Log Docker image info
         run: docker images | grep sandox || true
