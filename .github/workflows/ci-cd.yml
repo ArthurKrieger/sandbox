@@ -17,9 +17,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     environment: AWS
-    env:
-      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: 'true'
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -55,7 +52,7 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
         with:
           mask-password: true
 
