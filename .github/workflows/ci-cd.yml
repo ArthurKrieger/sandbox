@@ -70,8 +70,14 @@ jobs:
           IMAGE_TAG=${{ github.sha }}
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           ECR_URI=${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${REPO}:${IMAGE_TAG}
-          aws sts get-caller-identity
-          aws ecr describe-repositories --repository-names ${REPO} || aws ecr create-repository --repository-name ${REPO}
+          for i in $(seq 1 10); do
+            echo "--- attempt $i ---"
+            if aws ecr describe-repositories --repository-names ${REPO}; then
+              echo "SUCCEEDED on attempt $i"
+              break
+            fi
+            sleep 20
+          done
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
           docker build -t ${REPO}:${IMAGE_TAG} .
           docker tag ${REPO}:${IMAGE_TAG} ${ECR_URI}
