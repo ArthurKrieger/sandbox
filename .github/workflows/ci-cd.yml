@@ -17,6 +17,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     environment: AWS
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Checkout code
         run: |
@@ -53,11 +56,10 @@ jobs:
             echo "S3_ARTIFACT_BUCKET not set; skipping artifact upload."
           fi
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v3
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Build, tag and push Docker image to ECR
