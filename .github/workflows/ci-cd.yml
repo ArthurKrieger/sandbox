@@ -123,6 +123,9 @@ jobs:
           # register task definition
           TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://ecs/taskdef.json --query 'taskDefinition.taskDefinitionArn' --output text)
           echo "task_def_arn=${TASK_DEF_ARN}" >> $GITHUB_OUTPUT
+          echo "DEBUG cluster b64: $(echo -n '${{ env.ECS_CLUSTER }}' | base64)"
+          echo "DEBUG service b64: $(echo -n '${{ env.ECS_SERVICE }}' | base64)"
+          echo "DEBUG task_def_arn: $TASK_DEF_ARN"
           # update service to use new task definition
           aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service ${{ env.ECS_SERVICE }} --task-definition ${TASK_DEF_ARN} --force-new-deployment
           # wait for service stability
