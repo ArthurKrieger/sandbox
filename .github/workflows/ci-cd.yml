@@ -56,12 +56,6 @@ jobs:
             echo "S3_ARTIFACT_BUCKET not set; skipping artifact upload."
           fi
 
-      - name: Debug OIDC claims (temporary)
-        run: |
-          IDTOKEN=$(curl -sSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
-          echo "role-to-assume var: ${{ vars.AWS_DEPLOY_ROLE_ARN }}"
-          echo "$IDTOKEN" | cut -d '.' -f2 | tr '_-' '/+' | base64 -d 2>/dev/null | jq '{sub, aud, iss, ref, repository, repository_owner}'
-
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v3
         with:
