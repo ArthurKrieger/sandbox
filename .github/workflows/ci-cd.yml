@@ -149,7 +149,7 @@ jobs:
           RESPONSE=$(curl -s "${{ secrets.FREEDNS_UPDATE_URL }}&address=${PUBLIC_IP}")
           echo "FreeDNS response: ${RESPONSE}"
           case "$RESPONSE" in
-            *"has not changed"*|[0-9]*.[0-9]*.[0-9]*.[0-9]*) ;;
+            "Updated"*|*"has not changed"*) ;;
             *) echo "::warning::Unexpected FreeDNS response — hostname may not have updated." ;;
           esac
 
