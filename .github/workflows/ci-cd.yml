@@ -126,7 +126,13 @@ jobs:
                   { "name": "SPRING_DOCKER_COMPOSE_ENABLED", "value": "${{ vars.SPRING_DOCKER_COMPOSE_ENABLED }}" },
                   { "name": "SPRING_DATASOURCE_URL", "value": "${{ vars.SPRING_DATASOURCE_URL }}" },
                   { "name": "SPRING_DATASOURCE_USERNAME", "value": "${{ secrets.DB_USERNAME }}" },
-                  { "name": "SPRING_DATASOURCE_PASSWORD", "value": "${{ secrets.DB_PASSWORD }}" }
+                  { "name": "SPRING_DATASOURCE_PASSWORD", "value": "${{ secrets.DB_PASSWORD }}" },
+                  { "name": "OTEL_EXPORTER_OTLP_ENDPOINT", "value": "http://jaeger:4318" },
+                  { "name": "OTEL_EXPORTER_OTLP_PROTOCOL", "value": "http/protobuf" },
+                  { "name": "OTEL_SERVICE_NAME", "value": "sandox" },
+                  { "name": "OTEL_TRACES_EXPORTER", "value": "otlp" },
+                  { "name": "OTEL_METRICS_EXPORTER", "value": "none" },
+                  { "name": "OTEL_LOGS_EXPORTER", "value": "none" }
                 ],
                 "logConfiguration": {
                   "logDriver": "awslogs",
