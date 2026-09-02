@@ -108,81 +108,30 @@ jobs:
           docker push ${ECR_URI}
           echo "image=${ECR_URI}" >> $GITHUB_OUTPUT
 
-      - name: Create ECS task definition file
-        run: |
-          mkdir -p ecs
-          cat > ecs/taskdef.json <<'TASK'
-          {
-            "family": "${{ env.ECR_REPOSITORY }}",
-            "executionRoleArn": "${{ secrets.ECS_TASK_EXECUTION_ROLE_ARN }}",
-            "networkMode": "awsvpc",
-            "containerDefinitions": [
-              {
-                "name": "${{ env.CONTAINER_NAME }}",
-                "image": "IMAGE_PLACEHOLDER",
-                "essential": true,
-                "portMappings": [{ "containerPort": 8080, "hostPort": 8080 }],
-                "environment": [
-                  { "name": "SPRING_DOCKER_COMPOSE_ENABLED", "value": "${{ vars.SPRING_DOCKER_COMPOSE_ENABLED }}" },
-                  { "name": "SPRING_DATASOURCE_URL", "value": "${{ vars.SPRING_DATASOURCE_URL }}" },
-                  { "name": "SPRING_DATASOURCE_USERNAME", "value": "${{ secrets.DB_USERNAME }}" },
-                  { "name": "SPRING_DATASOURCE_PASSWORD", "value": "${{ secrets.DB_PASSWORD }}" },
-                  { "name": "OTEL_EXPORTER_OTLP_ENDPOINT", "value": "http://jaeger:4318" },
-                  { "name": "OTEL_EXPORTER_OTLP_PROTOCOL", "value": "http/protobuf" },
-                  { "name": "OTEL_SERVICE_NAME", "value": "sandox" },
-                  { "name": "OTEL_TRACES_EXPORTER", "value": "otlp" },
-                  { "name": "OTEL_METRICS_EXPORTER", "value": "none" },
-                  { "name": "OTEL_LOGS_EXPORTER", "value": "none" }
-                ],
-                "logConfiguration": {
-                  "logDriver": "awsfirelens",
-                  "options": {
-                    "Name": "es",
-                    "Host": "elasticsearch",
-                    "Port": "9200",
-                    "Index": "sandox",
-                    "Suppress_Type_Name": "On"
-                  }
-                }
-              },
-              {
-                "name": "log_router",
-                "image": "amazon/aws-for-fluent-bit:latest",
-                "essential": true,
-                "memoryReservation": 50,
-                "firelensConfiguration": {
-                  "type": "fluentbit",
-                  "options": { "enable-ecs-log-metadata": "true" }
-                },
-                "logConfiguration": {
-                  "logDriver": "awslogs",
-                  "options": {
-                    "awslogs-group": "/ecs/${{ env.ECR_REPOSITORY }}",
-                    "awslogs-region": "${{ env.AWS_REGION }}",
-                    "awslogs-stream-prefix": "firelens"
-                  }
-                }
-              }
-            ],
-            "requiresCompatibilities": ["FARGATE"],
-            "cpu": "256",
-            "memory": "512"
-          }
-          TASK
-
       - name: Register task definition and deploy via AWS CLI
         id: deploy-cli
         run: |
           set -e
           IMAGE=${{ steps.push-image.outputs.image }}
-          # replace placeholder with actual image
-          sed -i "s|IMAGE_PLACEHOLDER|${IMAGE}|g" ecs/taskdef.json
-          # register task definition
-          TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://ecs/taskdef.json --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          # Clone the currently-registered task definition (whatever
+          # sandbox-infra's Terraform last shaped it into — env vars,
+          # FireLens sidecar, cpu/memory, everything) and swap only the
+          # sandox container's image. This is the ONLY thing CI owns about
+          # the task definition; everything else stays defined in Terraform,
+          # one place, so it can never drift out of sync with what actually
+          # deploys.
+          aws ecs describe-task-definition --task-definition ${{ env.ECR_REPOSITORY }} --query 'taskDefinition' > current-taskdef.json
+
+          jq --arg IMAGE "$IMAGE" --arg NAME "${{ env.CONTAINER_NAME }}" '
+            .containerDefinitions = (.containerDefinitions | map(if .name == $NAME then .image = $IMAGE else . end))
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+          ' current-taskdef.json > new-taskdef.json
+
+          TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://new-taskdef.json --query 'taskDefinition.taskDefinitionArn' --output text)
           echo "task_def_arn=${TASK_DEF_ARN}" >> $GITHUB_OUTPUT
-          # update service to use new task definition
+
           aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service ${{ env.ECS_SERVICE }} --task-definition ${TASK_DEF_ARN} --force-new-deployment
-          # wait for service stability
           aws ecs wait services-stable --cluster ${{ env.ECS_CLUSTER }} --services ${{ env.ECS_SERVICE }}
 
       - name: Collect CloudWatch logs
