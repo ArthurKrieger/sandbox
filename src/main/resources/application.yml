@@ -17,9 +17,6 @@ logging:
   level:
     root: INFO
     dev.arthur: DEBUG
-  pattern:
-    # trace_id/span_id are injected into MDC automatically by the OTel Java
-    # agent whenever a span is active (no code change needed) — this just
-    # prints them, so you can copy a trace_id straight from a CloudWatch log
-    # line into Jaeger's search to find the exact request.
-    level: "%5p [trace_id=%X{trace_id:-},span_id=%X{span_id:-}]"
+  # Output format (JSON, via logstash-logback-encoder) lives in
+  # logback-spring.xml now — trace_id/span_id show up there as their own
+  # fields automatically, no pattern needed.

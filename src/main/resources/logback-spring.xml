@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- JSON to stdout instead of plain text. Every MDC entry (trace_id/
+         span_id, injected automatically by the OTel Java agent whenever a
+         span is active) becomes its own top-level field, no parsing needed
+         downstream. Log levels are still controlled by logging.level.* in
+         application.yml — only the output format changes here. -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder"/>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>
