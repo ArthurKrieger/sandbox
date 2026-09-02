@@ -7,6 +7,11 @@ RUN gradle build -x test --no-daemon
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
+
+# Explicit, not relying on whatever busybox applets this particular alpine
+# base happens to ship -- used by sandbox-infra's ECS container healthCheck.
+RUN apk add --no-cache curl
+
 COPY --from=builder /app/build/libs/*.jar app.jar
 
 # OpenTelemetry Java agent: zero-code auto-instrumentation (Spring Web, JDBC,
