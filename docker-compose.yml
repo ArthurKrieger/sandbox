@@ -3,9 +3,9 @@ version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: sandox-postgres
+    container_name: sandbox-postgres
     environment:
-      POSTGRES_DB: sandox
+      POSTGRES_DB: sandbox
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
@@ -20,14 +20,14 @@ services:
 
   app:
     build: .
-    container_name: sandox-app
+    container_name: sandbox-app
     ports:
       - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sandox
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sandbox
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
 

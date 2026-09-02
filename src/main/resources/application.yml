@@ -1,8 +1,8 @@
 spring:
   application:
-    name: sandox
+    name: sandbox
   datasource:
-    url: jdbc:postgresql://localhost:5432/sandox
+    url: jdbc:postgresql://localhost:5432/sandbox
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver

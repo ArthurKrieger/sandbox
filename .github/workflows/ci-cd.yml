@@ -12,7 +12,7 @@ env:
   ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
   ECS_SERVICE: ${{ vars.ECS_SERVICE }}
   AWS_REGION: ${{ vars.AWS_REGION }}
-  CONTAINER_NAME: sandox
+  CONTAINER_NAME: sandbox
 
 jobs:
   build:
@@ -82,7 +82,7 @@ jobs:
           set -e
           if [ -n "${{ vars.S3_ARTIFACT_BUCKET }}" ]; then
             echo "Uploading jar to s3://${{ vars.S3_ARTIFACT_BUCKET }}/$GITHUB_RUN_ID/"
-            aws s3 cp build/libs/sandox-*.jar s3://${{ vars.S3_ARTIFACT_BUCKET }}/$GITHUB_RUN_ID/ --region ${{ vars.AWS_REGION }} || true
+            aws s3 cp build/libs/sandbox-*.jar s3://${{ vars.S3_ARTIFACT_BUCKET }}/$GITHUB_RUN_ID/ --region ${{ vars.AWS_REGION }} || true
           else
             echo "S3_ARTIFACT_BUCKET not set; skipping artifact upload."
           fi
@@ -117,7 +117,7 @@ jobs:
           # Clone the currently-registered task definition (whatever
           # sandbox-infra's Terraform last shaped it into — env vars,
           # FireLens sidecar, cpu/memory, everything) and swap only the
-          # sandox container's image. This is the ONLY thing CI owns about
+          # sandbox container's image. This is the ONLY thing CI owns about
           # the task definition; everything else stays defined in Terraform,
           # one place, so it can never drift out of sync with what actually
           # deploys.
@@ -151,4 +151,4 @@ jobs:
           fi
 
       - name: Log Docker image info
-        run: docker images | grep sandox || true
+        run: docker images | grep sandbox || true

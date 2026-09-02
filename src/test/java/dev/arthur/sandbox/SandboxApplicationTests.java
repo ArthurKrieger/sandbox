@@ -1,4 +1,4 @@
-package dev.arthur.sandox;
+package dev.arthur.sandbox;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Import;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
-class SandoxApplicationTests {
+class SandboxApplicationTests {
 
 	@Test
 	void contextLoads() {
