@@ -135,11 +135,31 @@ jobs:
                   { "name": "OTEL_LOGS_EXPORTER", "value": "none" }
                 ],
                 "logConfiguration": {
+                  "logDriver": "awsfirelens",
+                  "options": {
+                    "Name": "es",
+                    "Host": "elasticsearch",
+                    "Port": "9200",
+                    "Index": "sandox",
+                    "Suppress_Type_Name": "On"
+                  }
+                }
+              },
+              {
+                "name": "log_router",
+                "image": "amazon/aws-for-fluent-bit:latest",
+                "essential": true,
+                "memoryReservation": 50,
+                "firelensConfiguration": {
+                  "type": "fluentbit",
+                  "options": { "enable-ecs-log-metadata": "true" }
+                },
+                "logConfiguration": {
                   "logDriver": "awslogs",
                   "options": {
                     "awslogs-group": "/ecs/${{ env.ECR_REPOSITORY }}",
                     "awslogs-region": "${{ env.AWS_REGION }}",
-                    "awslogs-stream-prefix": "ecs"
+                    "awslogs-stream-prefix": "firelens"
                   }
                 }
               }
