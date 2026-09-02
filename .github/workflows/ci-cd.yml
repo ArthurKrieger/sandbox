@@ -152,12 +152,17 @@ jobs:
           # nothing.
           NEW_IP=""
           for i in $(seq 1 30); do
-            TASK_ARNS=$(aws ecs list-tasks --cluster ${{ env.ECS_CLUSTER }} --service-name ${{ env.ECS_SERVICE }} --desired-status RUNNING --query 'taskArns' --output text)
+            # Every AWS CLI call below is allowed to fail/return empty on
+            # any given iteration (a task can vanish between list and
+            # describe, an ENI can be mid-attach, etc.) -- `|| true` keeps
+            # `set -e` from killing the whole step on a transient blip; an
+            # empty result just falls through to `sleep 5` and retries.
+            TASK_ARNS=$(aws ecs list-tasks --cluster ${{ env.ECS_CLUSTER }} --service-name ${{ env.ECS_SERVICE }} --desired-status RUNNING --query 'taskArns' --output text 2>/dev/null) || true
             if [ -n "$TASK_ARNS" ]; then
-              NEW_TASK_ARN=$(aws ecs describe-tasks --cluster ${{ env.ECS_CLUSTER }} --tasks $TASK_ARNS --query "tasks[?taskDefinitionArn=='${{ steps.deploy-cli.outputs.task_def_arn }}'] | [0].taskArn" --output text 2>/dev/null)
+              NEW_TASK_ARN=$(aws ecs describe-tasks --cluster ${{ env.ECS_CLUSTER }} --tasks $TASK_ARNS --query "tasks[?taskDefinitionArn=='${{ steps.deploy-cli.outputs.task_def_arn }}'] | [0].taskArn" --output text 2>/dev/null) || true
               if [ -n "$NEW_TASK_ARN" ] && [ "$NEW_TASK_ARN" != "None" ]; then
-                ENI_ID=$(aws ecs describe-tasks --cluster ${{ env.ECS_CLUSTER }} --tasks "$NEW_TASK_ARN" --query "tasks[0].attachments[?type=='ElasticNetworkInterface'] | [0].details[?name=='networkInterfaceId'].value | [0]" --output text)
-                CANDIDATE_IP=$(aws ec2 describe-network-interfaces --network-interface-ids "$ENI_ID" --query 'NetworkInterfaces[0].Association.PublicIp' --output text 2>/dev/null)
+                ENI_ID=$(aws ecs describe-tasks --cluster ${{ env.ECS_CLUSTER }} --tasks "$NEW_TASK_ARN" --query "tasks[0].attachments[?type=='ElasticNetworkInterface'] | [0].details[?name=='networkInterfaceId'].value | [0]" --output text 2>/dev/null) || true
+                CANDIDATE_IP=$(aws ec2 describe-network-interfaces --network-interface-ids "$ENI_ID" --query 'NetworkInterfaces[0].Association.PublicIp' --output text 2>/dev/null) || true
                 if [ -n "$CANDIDATE_IP" ] && [ "$CANDIDATE_IP" != "None" ] && curl -sf -m 4 "http://${CANDIDATE_IP}:8080/actuator/health" > /dev/null 2>&1; then
                   NEW_IP="$CANDIDATE_IP"
                   break
