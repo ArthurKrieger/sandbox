@@ -13,6 +13,21 @@ spring:
 server:
   port: 8080
 
+# Defaults for local dev only -- an env var of the same name always wins
+# over these (Spring's property source order puts OS env vars above
+# application.yml), so this never affects the real ECS deployment, where
+# Terraform injects the actual values. Not secrets -- just this disposable
+# playground account's own topic ARN/region, safe to commit; if you
+# `terraform destroy`/`apply` this into a different AWS account or region,
+# update them here too.
+#
+# AWS_REGION here is read by EventPublisher via @Value, same as
+# SNS_TOPIC_ARN -- it is NOT the AWS SDK's own AWS_REGION env var (the SDK's
+# default region chain reads System.getenv() directly, which Spring
+# properties never populate).
+SNS_TOPIC_ARN: arn:aws:sns:sa-east-1:421153135333:sandbox-producer-events
+AWS_REGION: sa-east-1
+
 logging:
   level:
     root: INFO

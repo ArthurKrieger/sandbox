@@ -17,6 +17,14 @@ repositories {
 	mavenCentral()
 }
 
+dependencyManagement {
+	imports {
+		// AWS SDK v2's own BOM -- keeps every software.amazon.awssdk:* module
+		// (sns, sqs, ...) on matching, compatible versions without pinning each one.
+		mavenBom 'software.amazon.awssdk:bom:2.29.0'
+	}
+}
+
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
@@ -36,6 +44,12 @@ dependencies {
 	// log line straight into separate Elasticsearch fields (level, trace_id,
 	// message, etc.) instead of shipping one opaque text blob per line.
 	implementation 'net.logstash.logback:logstash-logback-encoder:9.0'
+
+	// Publishes to SNS. Picks up credentials via the SDK's default chain --
+	// the ECS task role in prod (see sandbox-infra's modules/iam
+	// sns_topic_arn_publish), your local aws configure/SSO profile when
+	// running this on your own machine.
+	implementation 'software.amazon.awssdk:sns'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'

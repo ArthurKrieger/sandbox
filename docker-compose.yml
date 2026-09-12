@@ -1,5 +1,10 @@
-version: '3.8'
-
+# Only the app's supporting infra -- spring-boot-docker-compose auto-starts
+# this when the app boots locally (`./gradlew bootRun`), and stops it on
+# shutdown. The app itself is NOT a service here: it's what's currently
+# starting up and reading this file, so building/running a second copy of
+# it as a compose service is circular (and on Windows, actively broke --
+# Docker's build context COPY racing the host Gradle daemon for the same
+# .gradle cache files under this directory).
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,19 +22,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  app:
-    build: .
-    container_name: sandbox-app
-    ports:
-      - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sandbox
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
 
 volumes:
   postgres_data:
