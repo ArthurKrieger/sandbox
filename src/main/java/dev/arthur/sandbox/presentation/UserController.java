@@ -1,6 +1,7 @@
 package dev.arthur.sandbox.presentation;
 
-import dev.arthur.sandbox.messaging.EventPublisher;
+import dev.arthur.messaging.domain.EventPublisher;
+import dev.arthur.messaging.domain.EventType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -68,14 +69,8 @@ public class UserController {
             "active", true
         );
 
-        Map<String, Object> event = Map.of(
-            "event", "user.created",
-            "payload", user
-        );
-        // writeValueAsString throws an unchecked JacksonException in Jackson 3.x
-        // (Spring Boot 4's default now) -- caught defensively, not required.
         try {
-            eventPublisher.publish("user.created", objectMapper.writeValueAsString(event));
+            eventPublisher.publish(new EventType("user", "created"), objectMapper.writeValueAsString(user));
         } catch (JacksonException e) {
             log.error("failed to serialize user.created event", e);
         }

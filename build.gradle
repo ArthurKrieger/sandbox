@@ -14,14 +14,22 @@ java {
 }
 
 repositories {
+	// Local dev: `sandbox-messaging` published via `./gradlew publishToMavenLocal`
+	// in that repo. CI/prod resolve the same coordinates from S3 instead --
+	// gated on AWS_ACCESS_KEY_ID because Gradle's AwsCredentials validates
+	// eagerly at repo-registration time, so an unconditional block breaks
+	// every local build with no AWS env vars set.
+	mavenLocal()
 	mavenCentral()
-}
-
-dependencyManagement {
-	imports {
-		// AWS SDK v2's own BOM -- keeps every software.amazon.awssdk:* module
-		// (sns, sqs, ...) on matching, compatible versions without pinning each one.
-		mavenBom 'software.amazon.awssdk:bom:2.29.0'
+	if (System.getenv('AWS_ACCESS_KEY_ID')) {
+		maven {
+			url = "s3://${System.getenv('MAVEN_S3_BUCKET') ?: 'unset'}/releases"
+			credentials(AwsCredentials) {
+				accessKey = System.getenv('AWS_ACCESS_KEY_ID')
+				secretKey = System.getenv('AWS_SECRET_ACCESS_KEY')
+				sessionToken = System.getenv('AWS_SESSION_TOKEN')
+			}
+		}
 	}
 }
 
@@ -45,11 +53,10 @@ dependencies {
 	// message, etc.) instead of shipping one opaque text blob per line.
 	implementation 'net.logstash.logback:logstash-logback-encoder:9.0'
 
-	// Publishes to SNS. Picks up credentials via the SDK's default chain --
-	// the ECS task role in prod (see sandbox-infra's modules/iam
-	// sns_topic_arn_publish), your local aws configure/SSO profile when
-	// running this on your own machine.
-	implementation 'software.amazon.awssdk:sns'
+	// SNS/SQS wiring shared with sandbox-consumer. 0.1.0-SNAPSHOT while
+	// developing against a local build (mavenLocal above); CI/prod pin an
+	// actual released version once sandbox-messaging cuts a tag.
+	implementation 'dev.arthur:sandbox-messaging:0.1.0-SNAPSHOT'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
