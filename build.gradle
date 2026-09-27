@@ -13,22 +13,28 @@ java {
 	}
 }
 
+// No hardcoded fallback: this project is meant to be recreated in any AWS
+// account, and the bucket name is account-specific
+// (sandbox-maven-repo-<account_id>, see environments/persistent) -- a
+// fallback baked in here would silently point at the wrong bucket the
+// moment this runs against a different account.
+def mavenS3Bucket = System.getenv('MAVEN_S3_BUCKET')
+if (!mavenS3Bucket) {
+	throw new GradleException('MAVEN_S3_BUCKET env var not set -- export it (see scripts/load-env)')
+}
+
 repositories {
-	// Local dev: `sandbox-messaging` published via `./gradlew publishToMavenLocal`
-	// in that repo. CI/prod resolve the same coordinates from S3 instead --
-	// gated on AWS_ACCESS_KEY_ID because Gradle's AwsCredentials validates
-	// eagerly at repo-registration time, so an unconditional block breaks
-	// every local build with no AWS env vars set.
-	mavenLocal()
 	mavenCentral()
-	if (System.getenv('AWS_ACCESS_KEY_ID')) {
-		maven {
-			url = "s3://${System.getenv('MAVEN_S3_BUCKET') ?: 'unset'}/releases"
-			credentials(AwsCredentials) {
-				accessKey = System.getenv('AWS_ACCESS_KEY_ID')
-				secretKey = System.getenv('AWS_SECRET_ACCESS_KEY')
-				sessionToken = System.getenv('AWS_SESSION_TOKEN')
-			}
+	// Same repo, local and CI: no mavenLocal() shortcut. AwsImAuthentication
+	// tells Gradle's S3 transport to use the AWS SDK's own default credential
+	// provider chain instead of a hardcoded credentials block -- the same
+	// chain the AWS CLI/Terraform already use here (a local ~/.aws profile),
+	// and the one CI's OIDC step populates via env vars. One resolution
+	// path, whichever credentials happen to be present.
+	maven {
+		url = "s3://${mavenS3Bucket}/releases"
+		authentication {
+			awsIm(AwsImAuthentication)
 		}
 	}
 }
@@ -53,11 +59,9 @@ dependencies {
 	// message, etc.) instead of shipping one opaque text blob per line.
 	implementation 'net.logstash.logback:logstash-logback-encoder:9.0'
 
-	// SNS/SQS wiring shared with sandbox-consumer. Defaults to the local
-	// mavenLocal() build (0.1.0-SNAPSHOT, no AWS credentials needed) --
-	// CI passes -PsandboxMessagingVersion=<real tag> to pin the S3-published
-	// release instead.
-	implementation "dev.arthur:sandbox-messaging:${project.findProperty('sandboxMessagingVersion') ?: '0.1.0-SNAPSHOT'}"
+	// SNS/SQS wiring shared with sandbox-consumer -- always the real
+	// S3-published release, same version local and CI.
+	implementation 'dev.arthur:sandbox-messaging:0.1.0'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'

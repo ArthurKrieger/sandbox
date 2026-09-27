@@ -80,10 +80,10 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Run tests
-        run: ./gradlew test -PsandboxMessagingVersion=0.1.0
+        run: ./gradlew test
 
       - name: Build application
-        run: ./gradlew build -x test -PsandboxMessagingVersion=0.1.0
+        run: ./gradlew build -x test
 
       - name: Upload JAR artifact (to S3 if configured)
         run: |
