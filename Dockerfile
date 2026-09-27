@@ -1,10 +1,3 @@
-# Stage 1: Build
-FROM gradle:9.5.1-jdk21 AS builder
-WORKDIR /app
-COPY . .
-RUN gradle build -x test --no-daemon
-
-# Stage 2: Runtime
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
@@ -12,7 +5,12 @@ WORKDIR /app
 # base happens to ship -- used by sandbox-infra's ECS container healthCheck.
 RUN apk add --no-cache curl
 
-COPY --from=builder /app/build/libs/*.jar app.jar
+# The jar is already built by CI's own "Build application" step before this
+# runs (./gradlew build -x test) -- rebuilding it again inside the Docker
+# build was redundant (twice the compile time) and broke outright once
+# build.gradle needed MAVEN_S3_BUCKET/AWS credentials, which an isolated
+# Docker build context doesn't inherit from the CI job's environment.
+COPY build/libs/*.jar app.jar
 
 # OpenTelemetry Java agent: zero-code auto-instrumentation (Spring Web, JDBC,
 # etc.) — always the latest stable release. Behavior (where traces go, which
