@@ -12,6 +12,7 @@ env:
   ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
   ECS_SERVICE: ${{ vars.ECS_SERVICE }}
   AWS_REGION: ${{ vars.AWS_REGION }}
+  MAVEN_S3_BUCKET: ${{ vars.MAVEN_S3_BUCKET }}
   CONTAINER_NAME: sandbox
 
 jobs:
