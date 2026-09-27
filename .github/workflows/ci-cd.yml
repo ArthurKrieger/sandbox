@@ -71,11 +71,19 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
+      # Must run before any ./gradlew step: build.gradle resolves
+      # sandbox-messaging from S3, gated on AWS_ACCESS_KEY_ID being present.
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
       - name: Run tests
-        run: ./gradlew test
+        run: ./gradlew test -PsandboxMessagingVersion=0.1.0
 
       - name: Build application
-        run: ./gradlew build -x test
+        run: ./gradlew build -x test -PsandboxMessagingVersion=0.1.0
 
       - name: Upload JAR artifact (to S3 if configured)
         run: |
@@ -86,12 +94,6 @@ jobs:
           else
             echo "S3_ARTIFACT_BUCKET not set; skipping artifact upload."
           fi
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v3
-        with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
 
       - name: Build, tag and push Docker image to ECR
         id: push-image

@@ -53,10 +53,11 @@ dependencies {
 	// message, etc.) instead of shipping one opaque text blob per line.
 	implementation 'net.logstash.logback:logstash-logback-encoder:9.0'
 
-	// SNS/SQS wiring shared with sandbox-consumer. 0.1.0-SNAPSHOT while
-	// developing against a local build (mavenLocal above); CI/prod pin an
-	// actual released version once sandbox-messaging cuts a tag.
-	implementation 'dev.arthur:sandbox-messaging:0.1.0-SNAPSHOT'
+	// SNS/SQS wiring shared with sandbox-consumer. Defaults to the local
+	// mavenLocal() build (0.1.0-SNAPSHOT, no AWS credentials needed) --
+	// CI passes -PsandboxMessagingVersion=<real tag> to pin the S3-published
+	// release instead.
+	implementation "dev.arthur:sandbox-messaging:${project.findProperty('sandboxMessagingVersion') ?: '0.1.0-SNAPSHOT'}"
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'

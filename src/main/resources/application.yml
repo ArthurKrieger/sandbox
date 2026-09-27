@@ -26,6 +26,7 @@ server:
 # default region chain reads System.getenv() directly, which Spring
 # properties never populate).
 SNS_TOPIC_ARN: arn:aws:sns:sa-east-1:421153135333:sandbox-producer-events
+SQS_QUEUE_URL: https://sqs.sa-east-1.amazonaws.com/421153135333/sandbox-producer-queue
 AWS_REGION: sa-east-1
 
 logging:
