@@ -1,4 +1,4 @@
-name: CI/CD - Build & Test
+name: CI/CD - Build & Deploy
 
 on:
   push:
@@ -23,144 +23,73 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - name: Checkout code
-        run: |
-          set -e
-          echo "Cloning repository using GITHUB_TOKEN"
-          git init
-          git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
-          git fetch --depth=1 origin ${{ github.ref }}
-          git checkout -f ${{ github.sha }}
+      - uses: actions/checkout@v4
 
       - name: Verify AWS infra is deployed
         run: |
           ok=true
           check() {
             if [ -z "$2" ]; then
-              echo "::error::Missing $1"
+              echo "::error::Missing vars.$1"
               ok=false
             fi
           }
-          check "vars.AWS_REGION" "${{ vars.AWS_REGION }}"
-          check "vars.AWS_DEPLOY_ROLE_ARN" "${{ vars.AWS_DEPLOY_ROLE_ARN }}"
-          check "vars.ECR_REPOSITORY" "${{ vars.ECR_REPOSITORY }}"
-          check "vars.ECS_CLUSTER" "${{ vars.ECS_CLUSTER }}"
-          check "vars.ECS_SERVICE" "${{ vars.ECS_SERVICE }}"
-          check "vars.SPRING_DATASOURCE_URL" "${{ vars.SPRING_DATASOURCE_URL }}"
-          check "secrets.ECS_TASK_EXECUTION_ROLE_ARN" "${{ secrets.ECS_TASK_EXECUTION_ROLE_ARN }}"
-          check "secrets.DB_USERNAME" "${{ secrets.DB_USERNAME }}"
-          check "secrets.DB_PASSWORD" "${{ secrets.DB_PASSWORD }}"
+          check AWS_REGION "${{ vars.AWS_REGION }}"
+          check AWS_DEPLOY_ROLE_ARN "${{ vars.AWS_DEPLOY_ROLE_ARN }}"
+          check MAVEN_S3_BUCKET "${{ vars.MAVEN_S3_BUCKET }}"
+          check ECR_REPOSITORY "${{ vars.ECR_REPOSITORY }}"
+          check ECS_CLUSTER "${{ vars.ECS_CLUSTER }}"
+          check ECS_SERVICE "${{ vars.ECS_SERVICE }}"
           if [ "$ok" = false ]; then
-            echo ""
-            echo "One or more required GitHub Environment values (above) are empty."
-            echo "This means the AWS infra isn't deployed right now (or was destroyed)."
-            echo ""
-            echo "Fix: run 'terraform apply -var-file=terraform.tfvars' in"
-            echo "sandbox-infra/environments/sandbox first — it creates the AWS resources"
-            echo "AND writes all of these values automatically. Then re-run this workflow."
+            echo "The AWS environment values are missing: run 'terraform apply' in sandbox-infra/environments/sandbox, then re-run this workflow."
             exit 1
           fi
-          echo "All required AWS Environment vars/secrets are present — proceeding."
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
           cache: gradle
 
-      - name: Make gradlew executable
-        run: chmod +x gradlew
+      - run: chmod +x gradlew
 
-      # Must run before any ./gradlew step: build.gradle resolves
-      # sandbox-messaging from S3, gated on AWS_ACCESS_KEY_ID being present.
+      # Must run before Gradle: dependencies resolve from the S3 Maven repo.
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v3
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Run tests
-        run: ./gradlew test
-
-      - name: Build application
-        run: ./gradlew build -x test
-
-      - name: Upload JAR artifact (to S3 if configured)
-        run: |
-          set -e
-          if [ -n "${{ vars.S3_ARTIFACT_BUCKET }}" ]; then
-            echo "Uploading jar to s3://${{ vars.S3_ARTIFACT_BUCKET }}/$GITHUB_RUN_ID/"
-            aws s3 cp build/libs/sandbox-*.jar s3://${{ vars.S3_ARTIFACT_BUCKET }}/$GITHUB_RUN_ID/ --region ${{ vars.AWS_REGION }} || true
-          else
-            echo "S3_ARTIFACT_BUCKET not set; skipping artifact upload."
-          fi
+      - name: Build and test
+        run: ./gradlew build
 
       - name: Build, tag and push Docker image to ECR
+        if: github.event_name != 'pull_request'
         id: push-image
         run: |
           set -e
-          REPO=${{ env.ECR_REPOSITORY }}
-          IMAGE_TAG=${{ github.sha }}
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          ECR_URI=${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${REPO}:${IMAGE_TAG}
-          aws ecr describe-repositories --repository-names ${REPO} >/dev/null 2>&1 || aws ecr create-repository --repository-name ${REPO} >/dev/null
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
-          docker build -t ${REPO}:${IMAGE_TAG} .
-          docker tag ${REPO}:${IMAGE_TAG} ${ECR_URI}
-          docker push ${ECR_URI}
-          echo "image=${ECR_URI}" >> $GITHUB_OUTPUT
+          REGISTRY=$(aws sts get-caller-identity --query Account --output text).dkr.ecr.${AWS_REGION}.amazonaws.com
+          IMAGE=${REGISTRY}/${ECR_REPOSITORY}:${{ github.sha }}
+          aws ecr get-login-password | docker login --username AWS --password-stdin ${REGISTRY}
+          docker build -t ${IMAGE} .
+          docker push ${IMAGE}
+          echo "image=${IMAGE}" >> $GITHUB_OUTPUT
 
       - name: Register task definition and update service
-        id: deploy-cli
+        if: github.event_name != 'pull_request'
         run: |
           set -e
-          IMAGE=${{ steps.push-image.outputs.image }}
+          # Terraform owns the task definition; CI only swaps the image.
+          aws ecs describe-task-definition --task-definition ${ECR_REPOSITORY} --query 'taskDefinition' > current-taskdef.json
 
-          # Clone the currently-registered task definition (whatever
-          # sandbox-infra's Terraform last shaped it into — env vars,
-          # FireLens sidecar, cpu/memory, everything) and swap only the
-          # sandbox container's image. This is the ONLY thing CI owns about
-          # the task definition; everything else stays defined in Terraform,
-          # one place, so it can never drift out of sync with what actually
-          # deploys.
-          aws ecs describe-task-definition --task-definition ${{ env.ECR_REPOSITORY }} --query 'taskDefinition' > current-taskdef.json
-
-          jq --arg IMAGE "$IMAGE" --arg NAME "${{ env.CONTAINER_NAME }}" '
+          jq --arg IMAGE "${{ steps.push-image.outputs.image }}" --arg NAME "${CONTAINER_NAME}" '
             .containerDefinitions = (.containerDefinitions | map(if .name == $NAME then .image = $IMAGE else . end))
             | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
           ' current-taskdef.json > new-taskdef.json
 
           TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://new-taskdef.json --query 'taskDefinition.taskDefinitionArn' --output text)
-          echo "task_def_arn=${TASK_DEF_ARN}" >> $GITHUB_OUTPUT
-
-          # Kicks off the rolling deployment. ECS's default deployment config
-          # (maximumPercent 200%) starts the new task and only stops the old
-          # one once the new one passes its container healthCheck (see
-          # sandbox-infra's modules/ecs_service) -- so the app stays
-          # reachable at its one fixed address (module.app_proxy's Elastic
-          # IP, proxying via Cloud Map) throughout, no DNS/CI-side polling
-          # needed here.
-          aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service ${{ env.ECS_SERVICE }} --task-definition ${TASK_DEF_ARN} --force-new-deployment
+          aws ecs update-service --cluster ${ECS_CLUSTER} --service ${ECS_SERVICE} --task-definition ${TASK_DEF_ARN} --force-new-deployment
 
       - name: Wait for deployment to stabilize
-        run: aws ecs wait services-stable --cluster ${{ env.ECS_CLUSTER }} --services ${{ env.ECS_SERVICE }}
-
-      - name: Collect CloudWatch logs
-        run: |
-          mkdir -p logs
-          aws logs filter-log-events --log-group-name /ecs/${{ env.ECR_REPOSITORY }} --limit 500 --region ${{ env.AWS_REGION }} --query "events[].message" --output text > logs/ecs-deploy-logs.txt || true
-          echo "Saved logs to logs/ecs-deploy-logs.txt"
-
-      - name: Upload CloudWatch logs (to S3 if configured)
-        run: |
-          set -e
-          if [ -n "${{ vars.S3_ARTIFACT_BUCKET }}" ]; then
-            aws s3 cp logs/ecs-deploy-logs.txt s3://${{ vars.S3_ARTIFACT_BUCKET }}/$GITHUB_RUN_ID/ecs-deploy-logs.txt --region ${{ vars.AWS_REGION }} || true
-            echo "Uploaded logs to s3://${{ vars.S3_ARTIFACT_BUCKET }}/$GITHUB_RUN_ID/ecs-deploy-logs.txt"
-          else
-            echo "S3_ARTIFACT_BUCKET not set; skipping log upload."
-          fi
-
-      - name: Log Docker image info
-        run: docker images | grep sandbox || true
+        if: github.event_name != 'pull_request'
+        run: aws ecs wait services-stable --cluster ${ECS_CLUSTER} --services ${ECS_SERVICE}

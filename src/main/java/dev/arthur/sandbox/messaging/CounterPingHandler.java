@@ -1,9 +1,9 @@
 package dev.arthur.sandbox.messaging;
 
-import dev.arthur.messaging.domain.EventPublisher;
-import dev.arthur.messaging.domain.EventConsumer;
-import dev.arthur.messaging.domain.EventType;
 import dev.arthur.messaging.domain.Event;
+import dev.arthur.messaging.domain.EventConsumer;
+import dev.arthur.messaging.domain.EventPublisher;
+import dev.arthur.messaging.domain.EventType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -14,7 +14,6 @@ import tools.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 public class CounterPingHandler implements EventConsumer {
 
-    private static final EventType TYPE = new EventType("counter", "pinged");
     private static final int STOP_AT = 3;
 
     private final EventPublisher eventPublisher;
@@ -22,7 +21,7 @@ public class CounterPingHandler implements EventConsumer {
 
     @Override
     public boolean handles(EventType type) {
-        return TYPE.equals(type);
+        return CounterPing.TYPE.equals(type);
     }
 
     @Override
@@ -38,6 +37,6 @@ public class CounterPingHandler implements EventConsumer {
         }
 
         CounterPing reply = new CounterPing(ping.counterId(), next);
-        eventPublisher.publish(TYPE, objectMapper.writeValueAsString(reply));
+        eventPublisher.publish(CounterPing.TYPE, objectMapper.writeValueAsString(reply));
     }
 }

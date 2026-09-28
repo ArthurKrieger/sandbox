@@ -1,10 +1,4 @@
-# Only the app's supporting infra -- spring-boot-docker-compose auto-starts
-# this when the app boots locally (`./gradlew bootRun`), and stops it on
-# shutdown. The app itself is NOT a service here: it's what's currently
-# starting up and reading this file, so building/running a second copy of
-# it as a compose service is circular (and on Windows, actively broke --
-# Docker's build context COPY racing the host Gradle daemon for the same
-# .gradle cache files under this directory).
+# Supporting services only; spring-boot-docker-compose starts them on bootRun.
 services:
   postgres:
     image: postgres:16-alpine

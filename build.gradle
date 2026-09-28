@@ -13,11 +13,6 @@ java {
 	}
 }
 
-// No hardcoded fallback: this project is meant to be recreated in any AWS
-// account, and the bucket name is account-specific
-// (sandbox-maven-repo-<account_id>, see environments/persistent) -- a
-// fallback baked in here would silently point at the wrong bucket the
-// moment this runs against a different account.
 def mavenS3Bucket = System.getenv('MAVEN_S3_BUCKET')
 if (!mavenS3Bucket) {
 	throw new GradleException('MAVEN_S3_BUCKET env var not set -- export it (see scripts/load-env)')
@@ -25,12 +20,7 @@ if (!mavenS3Bucket) {
 
 repositories {
 	mavenCentral()
-	// Same repo, local and CI: no mavenLocal() shortcut. AwsImAuthentication
-	// tells Gradle's S3 transport to use the AWS SDK's own default credential
-	// provider chain instead of a hardcoded credentials block -- the same
-	// chain the AWS CLI/Terraform already use here (a local ~/.aws profile),
-	// and the one CI's OIDC step populates via env vars. One resolution
-	// path, whichever credentials happen to be present.
+	// Default AWS credential chain: local profile or CI's OIDC session.
 	maven {
 		url = "s3://${mavenS3Bucket}/releases"
 		authentication {
@@ -45,23 +35,15 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
 	implementation 'org.springframework.boot:spring-boot-starter-liquibase'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
-	implementation 'org.springframework.boot:spring-boot-docker-compose'
-	
+	developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
+
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:postgresql'
 	annotationProcessor 'org.projectlombok:lombok'
-	
-	// Swagger/OpenAPI Documentation
-	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.0.2'
 
-	// Structured (JSON) console logging — lets FireLens/Fluent Bit parse each
-	// log line straight into separate Elasticsearch fields (level, trace_id,
-	// message, etc.) instead of shipping one opaque text blob per line.
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
 	implementation 'net.logstash.logback:logstash-logback-encoder:9.0'
-
-	// SNS/SQS wiring shared with sandbox-consumer -- always the real
-	// S3-published release, same version local and CI.
-	implementation 'dev.arthur:sandbox-messaging:0.1.3'
+	implementation 'dev.arthur:sandbox-messaging:0.2.0'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
@@ -74,4 +56,9 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+// Only the boot jar; the Dockerfile copies build/libs/*.jar and needs exactly one file.
+tasks.named('jar') {
+	enabled = false
 }
