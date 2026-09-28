@@ -61,7 +61,7 @@ dependencies {
 
 	// SNS/SQS wiring shared with sandbox-consumer -- always the real
 	// S3-published release, same version local and CI.
-	implementation 'dev.arthur:sandbox-messaging:0.1.2'
+	implementation 'dev.arthur:sandbox-messaging:0.1.3'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
