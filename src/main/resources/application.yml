@@ -5,6 +5,10 @@ spring:
     url: jdbc:postgresql://localhost:5432/sandbox
     username: postgres
     password: postgres
+    # Services share one RDS database; each keeps its tables (outbox/inbox included) in its own schema.
+    hikari:
+      schema: producer
+      connection-init-sql: CREATE SCHEMA IF NOT EXISTS producer
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yml
 
