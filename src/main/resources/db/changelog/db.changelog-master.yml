@@ -3,3 +3,5 @@ databaseChangeLog:
       file: db/changelog/001-create-outbox-and-inbox-tables.sql
   - include:
       file: db/changelog/counter/001-create-counters-table.sql
+  - include:
+      file: db/changelog/counter/002-store-counters-as-events.sql
