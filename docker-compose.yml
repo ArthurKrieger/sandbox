@@ -17,6 +17,14 @@ services:
       timeout: 5s
       retries: 5
 
+  # Single-node Kafka (KRaft) on localhost:9092, with the image's defaults; the producer sets the tracking topic's
+  # retention itself. Run locally, the consumer service uses this one too.
+  kafka:
+    image: apache/kafka:4.1.0
+    container_name: sandbox-kafka
+    ports:
+      - "9092:9092"
+
 volumes:
   postgres_data:
 

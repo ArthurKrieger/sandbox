@@ -11,6 +11,26 @@ spring:
       connection-init-sql: CREATE SCHEMA IF NOT EXISTS producer
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yml
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      # Durable and duplicate-free: wait for every in-sync replica, and let the broker drop retried duplicates.
+      acks: all
+      properties:
+        enable.idempotence: true
+        # Fail a send within the request rather than blocking for a minute while Kafka is down.
+        max.block.ms: 3000
+        request.timeout.ms: 3000
+        delivery.timeout.ms: 4000
+
+sandbox:
+  tracking:
+    topic: tracking.locations
+    partitions: 3
+    # How long locations stay in the log, and so how far back the read side can replay. Real devices report
+    # personal data, and the frontend tells visitors about this limit.
+    retention: 24h
+    send-timeout: 5s
 
 logging:
   level:
