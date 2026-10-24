@@ -13,9 +13,14 @@ java {
 	}
 }
 
-def mavenS3Bucket = System.getenv('MAVEN_S3_BUCKET')
+def dotenv = new Properties()
+if (file('.env').exists()) {
+	file('.env').withReader { dotenv.load(it) }
+}
+
+def mavenS3Bucket = dotenv.getProperty('MAVEN_S3_BUCKET')
 if (!mavenS3Bucket) {
-	throw new GradleException('MAVEN_S3_BUCKET env var not set -- export it (see scripts/load-env)')
+	throw new GradleException('MAVEN_S3_BUCKET not set -- add it to .env (see .env.example)')
 }
 
 repositories {

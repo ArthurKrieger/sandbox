@@ -8,11 +8,6 @@ on:
   workflow_dispatch: {}
 
 env:
-  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-  ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
-  ECS_SERVICE: ${{ vars.ECS_SERVICE }}
-  AWS_REGION: ${{ vars.AWS_REGION }}
-  MAVEN_S3_BUCKET: ${{ vars.MAVEN_S3_BUCKET }}
   CONTAINER_NAME: sandbox
 
 jobs:
@@ -25,25 +20,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify AWS infra is deployed
+      # sandbox-infra's Terraform stores the whole .env as vars.DOTENV. Gradle reads the file;
+      # the later shell steps read the same values from $GITHUB_ENV.
+      - name: Write .env
+        env:
+          DOTENV: ${{ vars.DOTENV }}
         run: |
-          ok=true
-          check() {
-            if [ -z "$2" ]; then
-              echo "::error::Missing vars.$1"
-              ok=false
-            fi
-          }
-          check AWS_REGION "${{ vars.AWS_REGION }}"
-          check AWS_DEPLOY_ROLE_ARN "${{ vars.AWS_DEPLOY_ROLE_ARN }}"
-          check MAVEN_S3_BUCKET "${{ vars.MAVEN_S3_BUCKET }}"
-          check ECR_REPOSITORY "${{ vars.ECR_REPOSITORY }}"
-          check ECS_CLUSTER "${{ vars.ECS_CLUSTER }}"
-          check ECS_SERVICE "${{ vars.ECS_SERVICE }}"
-          if [ "$ok" = false ]; then
-            echo "The AWS environment values are missing: run 'terraform apply' in sandbox-infra/environments/sandbox, then re-run this workflow."
+          if [ -z "$DOTENV" ]; then
+            echo "::error::Missing vars.DOTENV: run 'terraform apply' in sandbox-infra/environments/sandbox, then re-run this workflow."
             exit 1
           fi
+          printf '%s\n' "$DOTENV" > .env
+          cat .env >> "$GITHUB_ENV"
 
       - uses: actions/setup-java@v5
         with:
@@ -57,8 +45,8 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Build and test
         run: ./gradlew build
