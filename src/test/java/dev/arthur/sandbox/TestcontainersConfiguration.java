@@ -13,7 +13,11 @@ public class TestcontainersConfiguration {
 	@Bean
 	@ServiceConnection
 	PostgreSQLContainer postgresContainer() {
-		return new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
+		// The service connection gives Liquibase a connection of its own, without the pool's schema setting, so the
+		// URL selects the "producer" schema for every connection, as application.yml does for the app's pool.
+		return new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"))
+				.withInitScript("create-producer-schema.sql")
+				.withUrlParam("currentSchema", "producer");
 	}
 
 	@Bean

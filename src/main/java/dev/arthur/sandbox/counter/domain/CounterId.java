@@ -1,19 +1,21 @@
 package dev.arthur.sandbox.counter.domain;
 
-import java.util.Objects;
+import org.jspecify.annotations.NonNull;
+import org.springframework.util.Assert;
+
 import java.util.UUID;
 
-public record CounterId(UUID value) {
+public record CounterId(@NonNull UUID value) {
 
     public CounterId {
-        Objects.requireNonNull(value, "counter id is required");
+        Assert.notNull(value, "counter id is required");
     }
 
     public static CounterId generate() {
         return new CounterId(UUID.randomUUID());
     }
 
-    public static CounterId of(UUID value) {
+    public static CounterId of(@NonNull UUID value) {
         return new CounterId(value);
     }
 

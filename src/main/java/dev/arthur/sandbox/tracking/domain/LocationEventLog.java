@@ -1,10 +1,10 @@
 package dev.arthur.sandbox.tracking.domain;
 
-/** The tracking event store: an append-only log where each device's events stay in order. */
+import org.jspecify.annotations.NonNull;
+
 public interface LocationEventLog {
 
-    /** Appends the event once it is durably stored, and says where it landed. */
-    Appended append(LocationRecorded event);
+    Appended append(@NonNull LocationRecorded event) throws EventLogUnavailableException;
 
     record Appended(int partition, long offset) {
     }

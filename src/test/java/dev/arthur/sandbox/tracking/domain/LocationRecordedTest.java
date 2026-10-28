@@ -16,39 +16,44 @@ class LocationRecordedTest {
     private static final DeviceId DEVICE = new DeviceId(UUID.randomUUID());
     private static final Position LISBON = new Position(38.7223, -9.1393, 12.0);
 
+    private static RecordLocation report(Instant recordedAt) {
+        return new RecordLocation(DEVICE, DeviceKind.SIMULATED, LISBON, recordedAt);
+    }
+
     @Test
     void recordsALocationWithANewEventIdAndTheTimeItArrived() {
-        LocationRecorded event = LocationRecorded.of(DEVICE, DeviceKind.SIMULATED, LISBON, NOW.minusSeconds(2), NOW);
+        final LocationRecorded event = LocationRecorded.of(report(NOW.minusSeconds(2)), NOW);
 
         assertThat(event.eventId()).isNotNull();
         assertThat(event.deviceId()).isEqualTo(DEVICE);
+        assertThat(event.kind()).isEqualTo(DeviceKind.SIMULATED);
+        assertThat(event.position()).isEqualTo(LISBON);
         assertThat(event.recordedAt()).isEqualTo(NOW.minusSeconds(2));
         assertThat(event.receivedAt()).isEqualTo(NOW);
-        assertThat(LocationRecorded.of(DEVICE, DeviceKind.SIMULATED, LISBON, NOW, NOW).eventId())
-                .isNotEqualTo(event.eventId());
+        assertThat(LocationRecorded.of(report(NOW), NOW).eventId()).isNotEqualTo(event.eventId());
     }
 
     @Test
     void allowsADeviceClockSlightlyAhead() {
-        Instant ahead = NOW.plus(LocationRecorded.MAX_CLOCK_SKEW);
+        final Instant ahead = NOW.plus(LocationRecorded.MAX_CLOCK_SKEW);
 
-        assertThat(LocationRecorded.of(DEVICE, DeviceKind.REAL, LISBON, ahead, NOW).recordedAt()).isEqualTo(ahead);
+        assertThat(LocationRecorded.of(report(ahead), NOW).recordedAt()).isEqualTo(ahead);
     }
 
     @Test
     void rejectsALocationFromTheFuture() {
-        Instant future = NOW.plus(LocationRecorded.MAX_CLOCK_SKEW).plusSeconds(1);
+        final Instant future = NOW.plus(LocationRecorded.MAX_CLOCK_SKEW).plusSeconds(1);
 
-        assertThatThrownBy(() -> LocationRecorded.of(DEVICE, DeviceKind.REAL, LISBON, future, NOW))
+        assertThatThrownBy(() -> LocationRecorded.of(report(future), NOW))
                 .isInstanceOf(InvalidLocationException.class)
                 .hasMessageContaining("future");
     }
 
     @Test
     void rejectsALocationReportedTooLate() {
-        Instant stale = NOW.minus(LocationRecorded.MAX_AGE).minusSeconds(1);
+        final Instant stale = NOW.minus(LocationRecorded.MAX_AGE).minusSeconds(1);
 
-        assertThatThrownBy(() -> LocationRecorded.of(DEVICE, DeviceKind.REAL, LISBON, stale, NOW))
+        assertThatThrownBy(() -> LocationRecorded.of(report(stale), NOW))
                 .isInstanceOf(InvalidLocationException.class)
                 .hasMessageContaining("old");
     }
@@ -68,5 +73,13 @@ class LocationRecordedTest {
     @Test
     void rejectsANegativeAccuracy() {
         assertThatThrownBy(() -> new Position(0, 0, -1.0)).isInstanceOf(InvalidLocationException.class);
+    }
+
+    @Test
+    void requiresEveryPartOfAReport() {
+        assertThatThrownBy(() -> new RecordLocation(null, DeviceKind.REAL, LISBON, NOW))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new RecordLocation(DEVICE, DeviceKind.REAL, LISBON, null))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }

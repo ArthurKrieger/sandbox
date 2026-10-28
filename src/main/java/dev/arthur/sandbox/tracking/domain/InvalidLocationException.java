@@ -1,9 +1,11 @@
 package dev.arthur.sandbox.tracking.domain;
 
-/** A reported location that can't be recorded as it is. */
-public class InvalidLocationException extends RuntimeException {
+import dev.arthur.sandbox.shared.domain.InvalidInputException;
+import org.jspecify.annotations.NonNull;
 
-    public InvalidLocationException(String message) {
+public class InvalidLocationException extends InvalidInputException {
+
+    public InvalidLocationException(@NonNull String message) {
         super(message);
     }
 }

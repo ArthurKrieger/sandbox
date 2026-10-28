@@ -1,7 +1,9 @@
 package dev.arthur.sandbox.tracking.domain;
 
-/** A point on the earth in WGS84 degrees, with the device's reported accuracy in metres when it has one. */
-public record Position(double latitude, double longitude, Double accuracyMeters) {
+import org.jspecify.annotations.Nullable;
+
+// The negated comparisons also reject NaN.
+public record Position(double latitude, double longitude, @Nullable Double accuracyMeters) {
 
     public Position {
         if (!(latitude >= -90 && latitude <= 90)) {
