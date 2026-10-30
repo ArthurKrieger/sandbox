@@ -3,7 +3,6 @@ package dev.arthur.sandbox;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -18,12 +17,6 @@ public class TestcontainersConfiguration {
 		return new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"))
 				.withInitScript("create-producer-schema.sql")
 				.withUrlParam("currentSchema", "producer");
-	}
-
-	@Bean
-	@ServiceConnection
-	KafkaContainer kafkaContainer() {
-		return new KafkaContainer(DockerImageName.parse("apache/kafka-native:4.1.0"));
 	}
 
 }

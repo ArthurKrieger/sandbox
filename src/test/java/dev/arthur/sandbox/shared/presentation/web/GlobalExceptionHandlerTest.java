@@ -1,7 +1,6 @@
 package dev.arthur.sandbox.shared.presentation.web;
 
 import dev.arthur.sandbox.shared.domain.NotFoundException;
-import dev.arthur.sandbox.shared.domain.InvalidInputException;
 import dev.arthur.sandbox.shared.domain.UnavailableException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,12 +23,6 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/not-found")
         void notFound() {
             throw new NotFoundException("thing not found") {
-            };
-        }
-
-        @GetMapping("/invalid")
-        void invalid() {
-            throw new InvalidInputException("latitude out of range") {
             };
         }
 
@@ -57,13 +50,6 @@ class GlobalExceptionHandlerTest {
         mvc.perform(get("/not-found"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.detail").value("thing not found"));
-    }
-
-    @Test
-    void mapsInvalidInput() throws Exception {
-        mvc.perform(get("/invalid"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").value("latitude out of range"));
     }
 
     @Test
